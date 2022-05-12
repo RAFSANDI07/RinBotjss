@@ -1,99 +1,58 @@
-const fs = require('fs');
-const Discord = require('discord.js');
-const Client = require('./client/Client');
-const config = require('./config.json');
-const {Player} = require('discord-player');
+const Discord = require("discord.js")
+require("dotenv").config()
 
-const client = new Client();
-client.commands = new Discord.Collection();
+// const generateImage = require("./generateImage")
 
-const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+const client = new Discord.Client({
+    intents: [
+        "GUILDS",
+        "GUILD_MESSAGES",
+        "GUILD_MEMBERS"
+    ]
+})
 
-for (const file of commandFiles) {
-  const command = require(`./commands/${file}`);
-  client.commands.set(command.name, command);
+let bot = {
+    client, 
+    prefix: "n.",
+    owners: ["315850603396071424"]
 }
 
-console.log(client.commands);
+client.commands = new Discord.Collection()
+client.events = new Discord.Collection()
+client.slashcommands = new Discord.Collection()
+client.buttons = new Discord.Collection()
 
-const player = new Player(client);
+client.loadEvents = (bot, reload) => require("./handlers/events")(bot, reload)
+client.loadCommands = (bot, reload) => require("./handlers/commands")(bot, reload)
+client.loadSlashCommands = (bot, reload) => require("./handlers/slashcommands")(bot, reload)
+client.loadButtons = (bot, reload) => require("./handlers/buttons")(bot, reload)
 
-player.on('error', (queue, error) => {
-  console.log(`[${queue.guild.name}] Error emitted from the queue: ${error.message}`);
-});
+client.loadEvents(bot, false)
+client.loadCommands(bot, false)
+client.loadSlashCommands(bot, false)
+client.loadButtons(bot, false)
 
-player.on('connectionError', (queue, error) => {
-  console.log(`[${queue.guild.name}] Error emitted from the connection: ${error.message}`);
-});
 
-player.on('trackStart', (queue, track) => {
-  queue.metadata.send(`▶ | Started playing: **${track.title}** in **${queue.connection.channel.name}**!`);
-});
+module.exports = bot
 
-player.on('trackAdd', (queue, track) => {
-  queue.metadata.send(`🎶 | Track **${track.title}** queued!`);
-});
+// client.on("ready", () => {
+//     console.log(`Logged in as ${client.user.tag}`)
+// })
 
-player.on('botDisconnect', queue => {
-  queue.metadata.send('❌ | I was manually disconnected from the voice channel, clearing queue!');
-});
+// client.on("messageCreate", (message) => {
+//     if (message.content == "hi"){
+//         message.reply("Hello World!")
+//     }
+// })
 
-player.on('channelEmpty', queue => {
-  queue.metadata.send('❌ | Nobody is in the voice channel, leaving...');
-});
+// const welcomeChannelId = "926530810008453120"
 
-player.on('queueEnd', queue => {
-  queue.metadata.send('✅ | Queue finished!');
-});
+// client.on("guildMemberAdd", async (member) => {
+//     const img = await generateImage(member)
+//     member.guild.channels.cache.get(welcomeChannelId).send({
+//         content: `<@${member.id}> Welcome to the server!`,
+//         files: [img]
+//     })
+// })
 
-client.once('ready', async () => {
-  console.log('Ready!');
-});
-
-client.on('ready', function() {
-  client.user.setActivity(config.activity, { type: config.activityType });
-});
-
-client.once('reconnecting', () => {
-  console.log('Reconnecting!');
-});
-
-client.once('disconnect', () => {
-  console.log('Disconnect!');
-});
-
-client.on('messageCreate', async message => {
-  if (message.author.bot || !message.guild) return;
-  if (!client.application?.owner) await client.application?.fetch();
-
-  if (message.content === '!deploy' && message.author.id === client.application?.owner?.id) {
-    await message.guild.commands
-      .set(client.commands)
-      .then(() => {
-        message.reply('Deployed!');
-      })
-      .catch(err => {
-        message.reply('Could not deploy commands! Make sure the bot has the application.commands permission!');
-        console.error(err);
-      });
-  }
-});
-
-client.on('interactionCreate', async interaction => {
-  const command = client.commands.get(interaction.commandName.toLowerCase());
-
-  try {
-    if (interaction.commandName == 'ban' || interaction.commandName == 'userinfo') {
-      command.execute(interaction, client);
-    } else {
-      command.execute(interaction, player);
-    }
-  } catch (error) {
-    console.error(error);
-    interaction.followUp({
-      content: 'There was an error trying to execute that command!',
-    });
-  }
-});
-
-client.login(config.token);
+client.login(process.env.TOKEN)
